@@ -1,26 +1,116 @@
-import {getRepository} from "typeorm";
-import {NextFunction, Request, Response} from "express";
-import {User} from "../entity/User";
+import { getRepository } from 'typeorm';
+import { Request, Response } from 'express';
+import { Users } from '../entity/Users';
+import { validate } from 'class-validator';
 
 export class UserController {
+  static getAll = async (req: Request, res: Response) => {
+    const userRepository = getRepository(Users);
+    let users;
 
-    private userRepository = getRepository(User);
-
-    async all(request: Request, response: Response, next: NextFunction) {
-        return this.userRepository.find();
+    try {
+      users = await userRepository.find({ select: ['id', 'username', 'role'] });
+    } catch (e) {
+      res.status(404).json({ message: 'Somenthing goes wrong!' });
     }
 
-    async one(request: Request, response: Response, next: NextFunction) {
-        return this.userRepository.findOne(request.params.id);
+    if (users.length > 0) {
+      res.send(users);
+    } else {
+      res.status(404).json({ message: 'Not result' });
+    }
+  };
+
+  static getById = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const userRepository = getRepository(Users);
+    try {
+      const user = await userRepository.findOneOrFail(id);
+      res.send(user);
+    } catch (e) {
+      res.status(404).json({ message: 'Not result' });
+    }
+  };
+
+  static new = async (req: Request, res: Response) => {
+    const { username, password, role } = req.body;
+    const user = new Users();
+
+    user.username = username;
+    user.password = password;
+    user.role = role;
+    // Se agregaron esto dos campos porque sino da error , no puede ser DEFAULT.
+    user.resetToken = "";
+    user.refreshToken = "";
+
+    // Validate
+    const validationOpt = { validationError: { target: false, value: false } };
+    const errors = await validate(user, validationOpt);
+    console.log("error ==> ", errors);
+    if (errors.length > 0) {
+      return res.status(400).json(errors);
     }
 
-    async save(request: Request, response: Response, next: NextFunction) {
-        return this.userRepository.save(request.body);
+    // TODO: HASH PASSWORD
+
+    const userRepository = getRepository(Users);
+    try {
+      user.hashPassword();
+      await userRepository.save(user);
+    } catch (e) {
+      return res.status(409).json({ message: 'Username already exist', e });
+    }
+    // All ok
+    //res.send('User created');  this line change by line 61.
+    res.status(201).json({ message : 'User Created !'});
+  };
+
+  static edit = async (req: Request, res: Response) => {
+    let user;
+    const { id } = req.params;
+    const { username, role } = req.body;
+
+    const userRepository = getRepository(Users);
+    // Try get user
+    try {
+      user = await userRepository.findOneOrFail(id);
+      user.username = username;
+      user.role = role;
+    } catch (e) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const validationOpt = { validationError: { target: false, value: false } };
+    const errors = await validate(user, validationOpt);
+
+    if (errors.length > 0) {
+      return res.status(400).json({ message: 'Error de Validación',errors});
     }
 
-    async remove(request: Request, response: Response, next: NextFunction) {
-        let userToRemove = await this.userRepository.findOne(request.params.id);
-        await this.userRepository.remove(userToRemove);
+    // Try to save user
+    try {
+      await userRepository.save(user);
+    } catch (e) {
+      return res.status(409).json({ message: 'Username already in use' });
     }
 
+    res.status(201).json({ message: 'User update !' });
+  };
+
+  static delete = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const userRepository = getRepository(Users);
+    let user: Users;
+
+    try {
+      user = await userRepository.findOneOrFail(id);
+    } catch (e) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Remove user
+    userRepository.delete(id);
+    res.status(201).json({ message: ' User deleted' });
+  };
 }
+
+export default UserController;

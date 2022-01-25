@@ -3,7 +3,7 @@ import { MinLength, IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 @Entity()
 @Unique(['username'])
-export class User {
+export class Users {
     @PrimaryGeneratedColumn()
     id: number;
 
