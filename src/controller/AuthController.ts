@@ -4,8 +4,6 @@ import { Users } from '../entity/Users';
 import * as jwt from 'jsonwebtoken';
 import config from '../config/config';
 import { validate } from 'class-validator';
-
-
 class AuthController {
   static login = async (req: Request, res: Response) => {
     const { username, password } = req.body;
